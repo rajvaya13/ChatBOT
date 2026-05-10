@@ -1,40 +1,123 @@
-# ChatBOT
+# GPT-2 ChatBot from Scratch
 
-An advanced chatbot powered by cutting-edge Large Language Models, built with Python and LLM (Large Language Model) technology.
+A character-level GPT-2 language model built from scratch using PyTorch. Trains on the OpenWebText dataset and runs an interactive text-completion chatbot using the trained model.
 
-## Dependencies (assuming Windows)
+This is a learning/research project — the full transformer architecture (self-attention, multi-head attention, feed-forward blocks, layer norm) is implemented manually without any high-level abstractions.
 
-You can install the required dependencies by running the following command:
+---
 
-```shell
-pip install pylzma numpy ipykernel jupyter torch --index-url https://download.pytorch.org/whl/cu118
+## How It Works
+
+```
+extract_dataset.py  →  generate_training_model.py  →  chatBot.py
+   (prepare data)          (train the model)           (chat with it)
 ```
 
-> **Note**: In case you do not possess an NVIDIA GPU, the `device` parameter will automatically default to `cpu`. This is because `device = 'cuda' if torch.cuda.is_available() else 'cpu'`.. If 'device' defaults to 'cpu', it's perfectly acceptable; you will simply encounter slower execution times.
+1. **Extract** — decompress OpenWebText `.xz` files into train/val text splits and build a character vocabulary
+2. **Train** — train a GPT-2 model on those splits, save weights to `model-01.pkl`
+3. **Chat** — load the saved model and interactively generate text completions from your prompts
 
-### Files
+---
 
-1. **data_extract.py** - This script is responsible for extracting data from the provided dataset for computation.
+## Requirements
 
-2. **generate_training_model.py** - The code is an implementation of a GPT-2 (Generative Pre-trained Transformer 2) language model using PyTorch. This model is designed for natural language processing tasks, including text generation. Here's a brief description of what the code does:
+**Python 3.8+** and the following packages:
 
-   - Sets up the training environment with PyTorch, device selection (GPU if available), and model hyperparameters.
-   - Reads a vocabulary file ("vocab.txt") to define the character set for the language model.
-   - Defines functions to extract random text chunks from training and validation data.
-   - Implements self-attention mechanisms and transformer blocks for the language model architecture.
-   - Creates a GPT-2 language model that consists of token and position embeddings, multiple transformer blocks, and a linear output layer.
-   - Trains the model by estimating loss and updating model weights using an AdamW optimizer.
-   - Saves the trained model to a file named "model-01.pkl."
-   - Provides a function to generate text using the trained model, starting from a given prompt.
+```shell
+pip install pylzma numpy tqdm ipykernel jupyter torch --index-url https://download.pytorch.org/whl/cu118
+```
 
-   This code serves as a foundational framework for training and using a GPT-2 language model for text generation tasks. It can be extended and customized for specific applications in natural language processing.
+> **No NVIDIA GPU?** That's fine. The code automatically falls back to CPU (`device = 'cuda' if torch.cuda.is_available() else 'cpu'`). Training will be significantly slower on CPU.
 
-3. **chatBot.py** - The code is an implementation of a GPT-2 (Generative Pre-trained Transformer 2) language model for text generation using PyTorch. This code allows you to interactively input a text prompt, and the model generates a continuation of the text. Here's a brief description of what the code does:
+---
 
-   - Sets up the training environment with PyTorch, device selection (GPU if available), and model hyperparameters.
-   - Defines a GPT-2 language model architecture consisting of self-attention mechanisms, transformer blocks, and embedding layers.
-   - Loads a pre-trained model from a file ("model-01.pkl").
-   - Repeatedly prompts the user for input and generates text based on the input using the pre-trained model.
-   - The generated text serves as a creative text completion or continuation based on the input provided by the user.
+## Setup & Usage
 
-   This code can be used for text generation, creative writing, or interactive storytelling by providing prompts and receiving model-generated responses. It offers an engaging way to interact with a language model and receive text completions.
+### Step 1 — Prepare the dataset
+
+Download the [OpenWebText dataset](https://skylion007.github.io/OpenWebTextCorpus/) and place it at `D:/openwebtext/openwebtext` (or edit the `folder_path` variable in `extract_dataset.py`).
+
+```shell
+python extract_dataset.py
+```
+
+**Outputs:**
+- `output_train.txt` — 90% of the data, used for training
+- `output_val.txt` — 10% of the data, used for validation
+- `vocab.txt` — all unique characters found in the dataset
+
+### Step 2 — Train the model
+
+```shell
+python generate_training_model.py
+```
+
+Trains for 200 iterations and saves the model weights to `model-01.pkl`.
+
+**Key hyperparameters (edit in the script):**
+
+| Parameter | Value | Description |
+|---|---|---|
+| `batch_size` | 32 | Training samples per iteration |
+| `block_size` | 128 | Context window (characters) |
+| `max_iters` | 200 | Total training iterations |
+| `learning_rate` | 3e-4 | AdamW learning rate |
+| `n_embd` | 384 | Embedding dimension |
+| `n_head` | 4 | Number of attention heads |
+| `n_layer` | 4 | Number of transformer blocks |
+| `dropout` | 0.2 | Dropout rate |
+
+### Step 3 — Run the chatbot
+
+```shell
+python chatBot.py -batch_size 32
+```
+
+You'll get an interactive prompt. Type anything and the model will generate a 150-character continuation.
+
+```
+Prompt:
+Once upon a time
+
+Completion:
+Once upon a time there was a great king who lived in a land far away...
+```
+
+Press `Ctrl+C` to exit.
+
+---
+
+## Model Architecture
+
+```
+GPTLanguageModel
+├── Token Embedding        (vocab_size → 384)
+├── Position Embedding     (128 → 384)
+├── Transformer Blocks × 4
+│   ├── MultiHeadAttention (4 heads × 96 dims)
+│   │   └── Head × 4
+│   │       ├── Key, Query, Value projections
+│   │       └── Causal (masked) self-attention
+│   ├── FeedForward        (384 → 1536 → 384, ReLU)
+│   └── LayerNorm × 2      (pre-norm residual connections)
+├── LayerNorm (final)
+└── Linear output head     (384 → vocab_size)
+```
+
+---
+
+## Project Files
+
+| File | Purpose |
+|---|---|
+| `extract_dataset.py` | Decompresses OpenWebText `.xz` files, creates train/val splits and `vocab.txt` |
+| `generate_training_model.py` | Defines and trains the GPT-2 model, saves `model-01.pkl` |
+| `chatBot.py` | Loads `model-01.pkl` and runs the interactive text-generation loop |
+
+---
+
+## Known Issues
+
+- `chatBot.py` has a syntax error on line 32 (missing closing parenthesis) and is missing `import torch.nn.functional as F` — needs a fix before it can run
+- `generate_training_model.py` is incomplete — the training loop and model save are cut off at line 180
+- The `FeedFoward` class in `generate_training_model.py` is a typo (missing an `r`)
